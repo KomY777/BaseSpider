@@ -1,0 +1,6 @@
+redis==3.5.3
+Requests==2.31.0
+Scrapy==2.5.1
+scrapy_redis==0.7.2
+six==1.16.0
+SQLAlchemy==2.0.28
