@@ -5,6 +5,7 @@ from scrapy import Request
 from scrapy.http import Response
 
 from BaseSpider.resolve.resolve_announcement import MultithreadingAnalysis
+from BaseSpider.spiders.spider_db_datas import get_all_spider_info
 
 
 class CrawlMode(IntEnum):
@@ -24,7 +25,7 @@ class AnnouncementSpider(scrapy.Spider):
         self.range_start_time = kwargs.get('range_start_time')
         self.range_end_time = kwargs.get('range_end_time')
         self.mode = kwargs.get('mode')
-        self.spider_info = get_spider_info(self.spider_id)
+        self.spider_info = get_all_spider_info(self.spider_id)
 
         self.page_resolver = None
         self.request_page_resolver = None
@@ -107,7 +108,7 @@ class AnnouncementSpider(scrapy.Spider):
 
     def after_crawl_detail(self, response: Response):
         if response.status == 200:
-            self.resolve_num += 1
+            self.crawl_num += 1
 
     def start_resolve(self):
         resolver = MultithreadingAnalysis(int(self.spider_id), '0')

@@ -8,7 +8,6 @@ from BaseSpider.tool.RequestTool import HttpSession, HttpRequest
 
 httpSession = HttpSession()
 httpRequest = HttpRequest()
-DISPATCH_URL = r'http://127.0.0.1:2024/api/spider/'
 
 
 def get_spider_info_from_db(spider_id):
@@ -145,13 +144,13 @@ def get_spider_info(spider_id):
 def get_all_spider_info(spider_id):
     spider = SpiderInfo()
 
-    spider_info = httpRequest.request('GET', DISPATCH_URL + 'baseInfo', {'spider_id': spider_id}).json()['data']
+    spider_info = httpRequest.request('GET', 'baseInfo', {'spider_id': spider_id}).json()['data']
     info = spider_info['info']
     spider.id = info['id']
     spider.name = info['name']
     spider.an_type = info['an_type']
     spider.section_page_size = info['section_page_size']
-    spider.redis_key = info['name']
+    spider.redis_key = info['id']
     spider.url = info['url']
     spider.body = info['body']
     spider.method = info['method']

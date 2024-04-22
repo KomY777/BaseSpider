@@ -7,8 +7,10 @@ import time
 # sys.path.append('C:\\Users\\pc\\Desktop\\project\\SpiderCilent\\BaseSpider')
 from json import JSONDecodeError
 from concurrent.futures.thread import ThreadPoolExecutor
+
+from BaseSpider.tool import ClassReflection
 from BaseSpider.tool.CountDownLatch import CountDownLatch
-from BaseSpider.tool.RequestTool import HttpSession
+from BaseSpider.tool.RequestTool import HttpSession, HttpRequest
 from BaseSpider.tool.classpath_get_obj import resolver_loader
 from BaseSpider.tool.judge_tool.agency_list_judge import agency_list_judge
 from BaseSpider.tool.judge_tool.dishonest_list_judge import dishonest_list_judge
@@ -44,6 +46,7 @@ class MultithreadingAnalysis:
 
     def __init__(self, spider_id, section):
         self.http = HttpSession()
+        self.httpRequest = HttpRequest()
         self.spider_id = spider_id
         self.section = section  # 已入库数量(考虑是否放掉)
         self.thread_pool = ThreadPoolExecutor(max_workers=10)  # 线程池(最大线程数为10)
@@ -56,14 +59,12 @@ class MultithreadingAnalysis:
         :return:
         """
         READ_HM_TYPE = 'READ_HM'
-        BASE_PATH = SPIDER_PARAMS_MAP['BASE_PATH']
 
         # 设置公告类型
-        this_spider = self.http.request(r'spider_list_query', {'spider_id': self.spider_id}).json()['spider']
-        SPIDER_PARAMS_MAP['AN_TYPE'] = this_spider['an_type']
+        this_spider = self.httpRequest.request('GET', 'baseInfo', {'spider_id': self.spider_id}).json()['data']
+        SPIDER_PARAMS_MAP['AN_TYPE'] = this_spider['info']['an_type']
 
-        response = self.http.request(r'resolver_query', {'spider_id': self.spider_id, 'type': READ_HM_TYPE}).json()
-        for resolve in response['resolvers']:
+        for resolve in this_spider['resolvers']:
             # 查询子组件信息
             sub_dict = self.get_sub_component(resolve['id'])
 
@@ -75,7 +76,8 @@ class MultithreadingAnalysis:
             # 设置组件路径
             SPIDER_PARAMS_MAP['ASSEMBLY_S'].append({'resolve': resolve,
                                                     'subcomponents': sub_dict['subcomponents'],
-                                                    'path': BASE_PATH + resolve['class_path']})
+                                                    'path': 'http://localhost:9000/' +resolve['class_path'],
+                                                    'class_name': resolve['class_name']})
 
     def update_version_no(self, resolve, version_no):
         """
@@ -149,12 +151,12 @@ class MultithreadingAnalysis:
         启动方法
         :return:
         """
-#        while True:
-#            try:
-#                self.load_resolver_path()  # 更新父组件版本号
-#                self.data_load()
-#            except JSONDecodeError:
-#                continue
+        #        while True:
+        #            try:
+        #                self.load_resolver_path()  # 更新父组件版本号
+        #                self.data_load()
+        #            except JSONDecodeError:
+        #                continue
 
         self.load_resolver_path()  # 更新父组件版本号
         self.data_load()
@@ -276,10 +278,11 @@ class ResolveResponse:
         # 解析器循环调用
         for index, item in enumerate(SPIDER_PARAMS_MAP['ASSEMBLY_S']):
             path = item['path']  # 父解析器路径
+            class_name = item['class_name']
             sub_component_list = item['subcomponents']  # 子解析器列表
 
             # 装载解析器
-            read_hm_resolver = resolver_loader(path)
+            read_hm_resolver = ClassReflection.remote_import(path, class_name)
             setattr(read_hm_resolver, 'sub_component_list', sub_component_list)
             setattr(read_hm_resolver, 'response_url', response_url)
             setattr(read_hm_resolver, 'response_text', response_text)

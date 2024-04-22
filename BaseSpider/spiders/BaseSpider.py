@@ -1,8 +1,4 @@
-import datetime
 import json
-import re
-import time
-import sys
 from collections import Iterable
 from enum import Enum
 from random import random
@@ -11,36 +7,28 @@ from re import sub, search
 import redis
 import logging
 
-from scrapy.exceptions import DontCloseSpider
 from scrapy_redis.spiders import RedisSpider
 from scrapy_redis.utils import bytes_to_str
 from BaseSpider.base_component.RequestResolver import RequestResolver
 from BaseSpider.base_component.entity.PageAttribute import PageAttribute
 from BaseSpider.base_component.entity.ReqParam import ReqParam
 from BaseSpider.resolve.resolve_announcement import MultithreadingAnalysis
-from BaseSpider.settings import addcycleurl, removecycleurl, http
 from BaseSpider.spiders import spider_db_datas
 from BaseSpider.tool import ClassReflection
 import traceback
 
 rd = redis.Redis('127.0.0.1', port=6379, db=0, password='Abc785342')
 
-def param_to_redis(m_spider_id):
-    spider_message = http.request(r'spider_init_query', {'spider_id': m_spider_id}).json()
-    base_key = http.request(r'spider_model_query', {'spider_id': m_spider_id}).json()['spider']['base_key']
 
+def param_to_redis(spider_id, url, body, callback, method, base_key):
     req_param = {}
-    url = spider_message['url']
-    body = spider_message['body']
-    callback = spider_message['callback']
-    method = spider_message['method']
 
     req_param['url'] = url
     req_param['body'] = body
     req_param['call_back'] = callback
     req_param['method'] = method
 
-    if m_spider_id in ['1104', '1105']:
+    if spider_id in ['1104', '1105']:
         fix_body = sub(r'<random>', str(random()), req_param['body'])
         req_param['body'] = fix_body
 
@@ -77,8 +65,12 @@ class BaseSpider(RedisSpider):
         :param kwargs:
         """
         self.spider_id = kwargs.get('spider_id')
-        param_to_redis(self.spider_id)
+        self.task_id = kwargs.get('id')
+
         self.spider_info = spider_db_datas.get_all_spider_info(self.spider_id)
+        param_to_redis(self.spider_id, self.spider_info.url, self.spider_info.body, self.spider_info.call_back,
+                       self.spider_info.method,
+        self.spider_info.redis_key)
         # self.spider_info = spider_db_datas.get_spider_info(self.spider_id)
         self.spider_info.start_time = kwargs.get('range_start_time')
         self.spider_info.earliest_time = kwargs.get('range_start_time')
@@ -318,15 +310,7 @@ class BaseSpider(RedisSpider):
     @staticmethod
     def close(spider, reason):
         rd.delete(spider.redis_list_key)  # 清空换页redis
-        if reason.get("status", 0) != 0:
-            if spider.list_status is not None:
-                reason = spider.list_status
-        spider.deal_stop(spider, reason)  # 处理结束信息
 
-        # if reason.get("status", 0) != 1:
-        #     requests.get(addcycleurl + spider.spider_id)
-        # else:
-        #     requests.get(removecycleurl + spider.spider_id)
 
     """ ''''''''''''''''''''''''''''''''''''''''''' 回调处理方法/工具方法 ''''''''''''''''''''''''''''''''''''''''''' """
 
@@ -431,69 +415,16 @@ class BaseSpider(RedisSpider):
         self.redis_key = self.redis_page_key
         self.crawler.settings.attributes['DOWNLOAD_DELAY'].value = self.spider_info.page_download_speed
 
-    def save_info(self):
-        """
-        保存爬虫信息
-        :return:
-        """
-        spider_db_datas.update_spider_status({'spider_id': self.spider_id,
-                                              'status': self.spider_info.status,
-                                              'crawl_history_id': self.spider_info.history_id,
-                                              'latest_time': self.spider_info.latest_time,
-                                              'cur_time': self.spider_info.cur_time,
-                                              'earliest_time': self.spider_info.earliest_time,
-                                              'latest_url': self.spider_info.latest_url})
-
-    def save_history_info(self, result):
-        if self.spider_info.history_id is None:
-            self.spider_info.history_id = spider_db_datas.get_uuid()
-
-            spider_db_datas.add_spider_history({'id': self.spider_info.history_id,
-                                                'spider_id': self.spider_id,
-                                                'crawl_aim_url': self.spider_info.latest_url,
-                                                'redis_key': self.redis_key,
-                                                'act_crawl_num': self.aim_num,
-                                                'server_id': 'test server one',
-                                                'server_name': 'test server one',
-                                                'start_time': self.spider_info.start_time,
-                                                'update_time': time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
-                                                'result': result,
-                                                'istrue_end': 'true'
-                                                })
-        else:
-            spider_db_datas.update_spider_history({'history_id': self.spider_info.history_id,
-                                                   'act_crawl_num': self.aim_num,
-                                                   'update_time': time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
-                                                   'result': result
-                                                   })
 
     def crawl_ann_close(self):
         """
         公告爬取结束处理
         :return:
         """
-        MultithreadingAnalysis(int(self.spider_id), '0').run()
-        self.crawler.engine.close_spider(self, {'istrue_end': 'true', 'status': 2, 'result': '本段结束'})
+        try:
+            resolver = MultithreadingAnalysis(int(self.spider_id), '0')
+            resolver.run()
+            self.crawler.engine.close_spider(self, {'istrue_end': 'true', 'status': 2, 'result': '本段结束'})
+        except Exception as e:
+            self.crawler.engine.close_spider(self, {'istrue_end': 'false', 'status': 1, 'result': f'解析器异常{e}'})
 
-    @staticmethod
-    def deal_stop(spider, reason):
-        """
-        爬虫停止处理
-        :param spider:
-        :param reason:
-        :return:
-        """
-        if reason.get('result') != '网站未更新数据':
-            spider.save_history_info(result=reason.get('result'))
-            spider.save_info()
-            print(reason)
-
-    # def spider_idle(self, spider):
-    #     if not self.server.lindex(self.redis_key, 0):
-    #         self.idle_count += 1
-    #
-    #     if self.idle_count > self.idle_number:
-    #         # 执行关闭爬虫操作
-    #         self.crawler.engine.close_spider(self, {'istrue_end': 'false', 'status': 0, 'result': '超时'})
-    #         return
-    #     raise DontCloseSpider
