@@ -6,9 +6,9 @@ class HttpRequest(object):
     def request(cls, method, url, data=None, headers=None): # 这里是要传入的参数，请求方法、接口地址、传参、头文件
         method = method.upper()  # 这里将传入的请求方法统一大写，然后进行判断采用什么方法
         if method == 'POST':
-            return requests.post(url=url, data=data, headers=headers)
+            return requests.post(url=r'http://localhost:2024/api/spider/'+url, data=data, headers=headers)
         elif method == 'GET':
-            return requests.get(url=url, params=data, headers=headers)
+            return requests.get(url=r'http://localhost:2024/api/spider/'+url, params=data, headers=headers)
 
 
 class HttpSession(object):
