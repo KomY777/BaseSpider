@@ -1,10 +1,12 @@
+import re
+
 import scrapy
 from BaseSpider.base_component.entity.PageAttribute import PageAttribute
 from BaseSpider.base_component.entity.ReqParam import ReqParam
 from enum import IntEnum
 from scrapy import Request
 from scrapy.http import Response
-from BaseSpider.api.admin import get_spider_info
+from BaseSpider.api.admin import get_spider_info, update_task_status
 from BaseSpider.tool import ClassReflection
 import datetime
 
@@ -16,6 +18,13 @@ class CrawlMode(IntEnum):
     INCREMENT = 1
     # 范围
     RANGE = 2
+
+class TaskStatus(IntEnum):
+    PENDING = 0
+    SCHEDULED = 1
+    RUNNING = 2
+    COMPLETED = 3
+    ERROR = 4
 
 
 DATE_TIME_FORMAT = '%Y-%m-%d %H:%M:%S'
@@ -31,6 +40,9 @@ class AnnouncementSpider(scrapy.Spider):
         self.init_kwargs = kwargs
         self.task_id = kwargs.get('task_id')
         self.spider_id = kwargs.get('spider_id')
+        self.log_url = kwargs.get('LOG_FILE')
+        if self.log_url is not None:
+            self.log_url = re.sub(r'^\.', '', self.log_url)
 
         # 时间戳格式
         if kwargs.get('range_start_time').isdigit():
@@ -70,6 +82,9 @@ class AnnouncementSpider(scrapy.Spider):
         self.resolve_num = 0
 
         self.detail_url_list = []
+        self.last_crawl_time = None
+
+
 
     def start_requests(self):
         try:
@@ -80,13 +95,13 @@ class AnnouncementSpider(scrapy.Spider):
             elif self.mode == CrawlMode.RANGE:
                 call_back = self.binary_search
             else:
-                self.logger.error(f"mode error: {self.mode}")
+                self.logger.error(f">>> mode error: {self.mode}")
                 return
             init_request = self.generate_page_request(self.cur_page, call_back)
             yield init_request
 
         except Exception as e:
-            self.logger.error(f"parse error: {e}")
+            self.logger.error(f">>> parse error: {e}")
             return
 
     def binary_search(self, response: Response):
@@ -95,7 +110,7 @@ class AnnouncementSpider(scrapy.Spider):
             if self.end_page == 0:
                 self.end_page = page_attr.largest_page
 
-            self.logger.info(f'binary searching:\n' +
+            self.logger.info(f'>>> binary searching:\n' +
                              f'start_page: {self.start_page},\n' +
                              f'end_page: {self.end_page},\n' +
                              f'cur_page: {self.cur_page},\n' +
@@ -111,8 +126,8 @@ class AnnouncementSpider(scrapy.Spider):
                 page_attr.oldest_time = page_attr.oldest_time - tolerance
             # crawl_start_time 处于当前页
             if page_attr.newest_time >= self.crawl_start_time > page_attr.oldest_time:
-                # yield self.generate_page_request(self.start_page, self.crawl_page)
-                # return
+                # 记录爬取的最新的详情时间
+                self.last_crawl_time = page_attr.newest_time
                 yield from self.crawl_page(response)
                 return
             # 当前页最新时间早于 crawl_start_time
@@ -122,24 +137,25 @@ class AnnouncementSpider(scrapy.Spider):
                 self.start_page = page_attr.cur_page + 1
 
             if self.start_page > self.end_page:
-                self.logger.info(f"page not found")
-                self.logger.info(f'try to start crawl from cur page')
+                self.logger.info(f">>> page not found")
+                self.logger.info(f'>>> try to start crawl from cur page')
+                self.last_crawl_time = page_attr.newest_time
                 yield from self.crawl_page(response)
                 return
 
             self.cur_page = (self.start_page + self.end_page) // 2
             yield self.generate_page_request(self.cur_page, self.binary_search)
         except Exception as e:
-            self.logger.error(f"binary_search error: {e}")
+            self.logger.error(f">>> binary_search error: {e}")
             return
 
     def crawl_page(self, response: Response):
         try:
-            self.logger.info(f"crawl_page: {self.cur_page}")
+            self.logger.info(f">>> crawl_page: {self.cur_page}")
             page_attr = self.resolve_page(response)
             # 当前页最新一条晚于 crawl_end_time
             if page_attr.newest_time < self.crawl_end_time:
-                self.logger.info(f"crawl end, page_newest_time: {page_attr.newest_time}")
+                self.logger.info(f">>> crawl end, page_newest_time: {page_attr.newest_time}")
                 yield from self.crawl_detail()
                 return
 
@@ -147,7 +163,7 @@ class AnnouncementSpider(scrapy.Spider):
             self.cur_page += 1
             yield self.generate_page_request(self.cur_page, self.crawl_page)
         except Exception as e:
-            self.logger.error(f"crawl_page error: {e}")
+            self.logger.error(f">>> crawl_page error: {e}")
             return
 
     def crawl_detail(self):
@@ -155,22 +171,38 @@ class AnnouncementSpider(scrapy.Spider):
             for url in self.detail_url_list:
                 yield self.generate_detail_request(url, self.after_crawl_detail)
         except Exception as e:
-            self.logger.error(f"crawl_detail error: {e}")
+            self.logger.error(f">>> crawl_detail error: {e}")
             return
 
     def after_crawl_detail(self, response: Response):
         self.logger.info(response.url)
         if response.status == 200:
-            self.resolve_num += 1
+            self.crawl_num += 1
 
     def start_resolve(self):
+        self.logger.info('>>> start resolve')
         resolver = MultithreadingAnalysis(int(self.spider_id), '0')
         resolver.run()
         self.resolve_num = resolver.already_resolved_num
 
-    def close(spider, reason):
-        # todo: 记录结果，变更状态
-        pass
+    def close(self, reason):
+        self.logger.info(f'>>> spider close, reason: {reason}')
+        self.start_resolve()
+        self.logger.info(f'>>> crawl done, crawl num: {self.crawl_num}, resolve_num: {self.resolve_num}')
+        status = TaskStatus.COMPLETED if reason == 'finished' else TaskStatus.ERROR
+
+        result = {
+            'task_id': self.task_id,
+            'status': status,
+            'total_crawl': self.crawl_num,
+            'total_resolve': self.resolve_num,
+            'last_crawl_url': self.detail_url_list.pop() if len(self.detail_url_list) > 0 else None,
+            'last_crawl_time': self.last_crawl_time,
+            'log_url': self.log_url
+        }
+
+        update_task_status(result)
+
 
     # 解析列表页面信息
     def resolve_page(self, response) -> PageAttribute:

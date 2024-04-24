@@ -1,15 +1,14 @@
+import datetime
 import time
 from BaseSpider.spiders.spider_info import SpiderInfo
-from BaseSpider.tool.RequestTool import HttpRequest
-httpRequest = HttpRequest()
-DISPATCH_URL = r'http://127.0.0.1:2024/api/spider/'
+from BaseSpider.api.index import ScheduleAdminRequest
 FILE_SERVER_URL = r'http://localhost:9000/'
 
 
 def get_spider_info(spider_id):
     spider = SpiderInfo()
 
-    spider_info = httpRequest.request('GET', DISPATCH_URL + 'baseInfo', {'spider_id': spider_id}).json()['data']
+    spider_info = ScheduleAdminRequest.request('GET', '/spider/baseInfo', {'spider_id': spider_id}).json()['data']
     info = spider_info['info']
     spider.id = info['id']
     spider.name = info['name']
@@ -35,3 +34,18 @@ def get_spider_info(spider_id):
         spider.resolvers[resolver['type']].append(FILE_SERVER_URL + resolver['class_path'])
         spider.resolvers[resolver['type']].append(resolver['class_name'])
     return spider
+
+def update_task_status(data):
+    return ScheduleAdminRequest.request('POST', '/task/update_task_status', data).json()
+
+
+# if __name__ == '__main__':
+#     update_task_status({
+#         'task_id': '0DC739149A74400CA544CAA7',
+#         'status': 3,
+#         'total_crawl': 100,
+#         'total_resolve': 100,
+#         'log_url': '/logs/default/AnnouncementSpider/d4471b20021f11efa36dacde48001122.log',
+#         'last_crawl_url': 'xxx',
+#         'last_crawl_time': int(datetime.datetime.now().timestamp())
+#     })

@@ -57,3 +57,5 @@ REDIRECT_ENABLED = False
 PROXIES = ["http://127.0.0.1:5010", None]
 
 RETRY_ENABLED = False
+
+SCHEDULE_ADMIN_SERVER_URL = 'http://localhost:2024/api'
