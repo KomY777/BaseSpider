@@ -20,24 +20,45 @@ class CrawlMode(IntEnum):
 
 DATE_TIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 
-
 class AnnouncementSpider(scrapy.Spider):
     name = 'AnnouncementSpider'
 
+    def has_ext_arg(self, key) -> bool:
+        return self.ext_args is not None and self.ext_args.get(key) is not None
+
     def __init__(self, *args, **kwargs):
         super().__init__(**kwargs)
+        self.init_kwargs = kwargs
         self.task_id = kwargs.get('task_id')
         self.spider_id = kwargs.get('spider_id')
-        self.range_start_time = datetime.datetime.fromtimestamp(int(kwargs.get('range_start_time')))
-        self.range_end_time = datetime.datetime.fromtimestamp(int(kwargs.get('range_end_time')))
+
+        # 时间戳格式
+        if kwargs.get('range_start_time').isdigit():
+            self.crawl_end_time = datetime.datetime.fromtimestamp(int(kwargs.get('range_start_time')))
+            self.crawl_start_time = datetime.datetime.fromtimestamp(int(kwargs.get('range_end_time')))
+        # 日期字符串格式
+        else:
+            self.crawl_end_time = datetime.datetime.strptime(kwargs.get('range_start_time'), DATE_TIME_FORMAT)
+            self.crawl_start_time = datetime.datetime.strptime(kwargs.get('range_end_time'), DATE_TIME_FORMAT)
+        # 抓取模式
         self.mode = int(kwargs.get('mode'))
-        self.args = kwargs.get('args')
+        # 其他参数
+        self.ext_args = kwargs.get('args')
+        # 获取爬虫信息
         self.spider_info = get_spider_info(self.spider_id)
 
+        # 当增量爬取时，爬取结束时间改为最后一次抓取到的公告时间
+        if self.mode == CrawlMode.INCREMENT and self.has_ext_arg('last_crawl_detail_time'):
+            self.crawl_end_time = datetime.datetime.strptime(self.ext_args.get('last_crawl_detail_time'), DATE_TIME_FORMAT)
+
+        # 加载解析器
+        # 详情请求构造器
         self.request_detail_resolver = ClassReflection.remote_import(self.spider_info.resolvers['REQ_URL'][0],
                                                                      self.spider_info.resolvers['REQ_URL'][1])
+        # 列表页请求构造器
         self.request_page_resolver = ClassReflection.remote_import(
             self.spider_info.resolvers['REQ_NEXT_PAGE'][0], self.spider_info.resolvers['REQ_NEXT_PAGE'][1])
+        # 列表页解析器
         self.page_resolver = ClassReflection.remote_import(self.spider_info.resolvers['READ_UL'][0],
                                                            self.spider_info.resolvers['READ_UL'][1])
 
@@ -71,32 +92,39 @@ class AnnouncementSpider(scrapy.Spider):
     def binary_search(self, response: Response):
         try:
             page_attr = self.resolve_page(response)
-            self.logger.info(f'binary searching: ' +
+            if self.end_page == 0:
+                self.end_page = page_attr.largest_page
+
+            self.logger.info(f'binary searching:\n' +
                              f'start_page: {self.start_page},\n' +
                              f'end_page: {self.end_page},\n' +
                              f'cur_page: {self.cur_page},\n' +
                              f'cur_page_newest_time: {page_attr.newest_time}\n' +
-                             f'cur_page_oldest_time: {page_attr.oldest_time}'
+                             f'cur_page_oldest_time: {page_attr.oldest_time}\n' +
+                             f'aim_time: {self.crawl_start_time}'
                              )
 
-            if self.end_page == 0:
-                self.end_page = page_attr.largest_page
-
-            # 抓取顺序(由新到旧)： range_end_time ～ range_start_time
-            # range_end_time 处于当前页
-            if page_attr.newest_time >= self.range_end_time > page_attr.oldest_time:
+            # 时间范围宽容度 防止开始时间刚好处于两条公告之间
+            if self.has_ext_arg('tolerance_min'):
+                tolerance = datetime.timedelta(minutes=int(self.ext_args.get('tolerance_min')))
+                page_attr.newest_time = page_attr.newest_time + tolerance
+                page_attr.oldest_time = page_attr.oldest_time - tolerance
+            # crawl_start_time 处于当前页
+            if page_attr.newest_time >= self.crawl_start_time > page_attr.oldest_time:
                 # yield self.generate_page_request(self.start_page, self.crawl_page)
                 # return
                 yield from self.crawl_page(response)
                 return
-            # 当前页最新时间晚于 range_end_time
-            elif page_attr.newest_time < self.range_end_time:
-                self.end_page = page_attr.cur_page
+            # 当前页最新时间早于 crawl_start_time
+            elif page_attr.newest_time < self.crawl_start_time:
+                self.end_page = page_attr.cur_page - 1
             else:
-                self.start_page = page_attr.cur_page
+                self.start_page = page_attr.cur_page + 1
 
-            if self.start_page == self.end_page:
-                self.logger.info(f"page not found: {self.range_start_time}")
+            if self.start_page > self.end_page:
+                self.logger.info(f"page not found")
+                self.logger.info(f'try to start crawl from cur page')
+                yield from self.crawl_page(response)
                 return
 
             self.cur_page = (self.start_page + self.end_page) // 2
@@ -109,8 +137,9 @@ class AnnouncementSpider(scrapy.Spider):
         try:
             self.logger.info(f"crawl_page: {self.cur_page}")
             page_attr = self.resolve_page(response)
-            if self.range_start_time > page_attr.newest_time:
-                self.logger.info(f"crawl end: {self.range_end_time}")
+            # 当前页最新一条晚于 crawl_end_time
+            if page_attr.newest_time < self.crawl_end_time:
+                self.logger.info(f"crawl end, page_newest_time: {page_attr.newest_time}")
                 yield from self.crawl_detail()
                 return
 
