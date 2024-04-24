@@ -32,3 +32,10 @@ class DaemonStatus(WsResource):
             "disk_used_mb": disk_used_mb,
         }
 ```
+
+```shell
+cd scrapyd
+scrapyd
+
+scrapyd-deploy BASE_SPIDER -p default
+```
