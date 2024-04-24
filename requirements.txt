@@ -1,0 +1,11 @@
+Requests==2.31.0
+Scrapy==2.5.1
+setuptools==58.0.4
+setuptools==65.5.1
+six==1.15.0
+six==1.16.0
+SQLAlchemy==2.0.28
+urllib3==2.2.1
+Twisted==22.10.0
+cryptography==36.0.2
+pyOpenSSL==22.0.0
