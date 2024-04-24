@@ -14,11 +14,6 @@ NEWSPIDER_MODULE = 'BaseSpider.spiders'
 ROBOTSTXT_OBEY = False
 DOWNLOAD_TIMEOUT = 120
 DOWNLOAD_DELAY = 1  # 时间间隔
-# 启用Redis调度存储请求队列
-SCHEDULER = "scrapy_redis.scheduler.Scheduler"
-
-# 确保所有的爬虫通过Redis去重
-DUPEFILTER_CLASS = "scrapy_redis.dupefilter.RFPDupeFilter"
 
 addcycleurl = "http://127.0.0.1:8100/scheduler/add?spider_id="
 removecycleurl = "http://127.0.0.1:8100/scheduler/remove?spider_id="
