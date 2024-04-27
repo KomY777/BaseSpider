@@ -59,3 +59,4 @@ PROXIES = ["http://127.0.0.1:5010", None]
 RETRY_ENABLED = False
 
 SCHEDULE_ADMIN_SERVER_URL = 'http://localhost:2024/api'
+ANNOUCEMENT_DB_SERVER_URL = 'http://39.100.86.12:8899/databaseOperate'

@@ -7,6 +7,7 @@ from enum import IntEnum
 from scrapy import Request
 from scrapy.http import Response
 from BaseSpider.api.admin import get_spider_info, update_task_status
+from BaseSpider.api.announcement_db import get_uuid, write_response_to_db
 from BaseSpider.tool import ClassReflection
 import datetime
 
@@ -19,6 +20,7 @@ class CrawlMode(IntEnum):
     # 范围
     RANGE = 2
 
+
 class TaskStatus(IntEnum):
     PENDING = 0
     SCHEDULED = 1
@@ -28,6 +30,7 @@ class TaskStatus(IntEnum):
 
 
 DATE_TIME_FORMAT = '%Y-%m-%d %H:%M:%S'
+
 
 class AnnouncementSpider(scrapy.Spider):
     name = 'AnnouncementSpider'
@@ -60,8 +63,10 @@ class AnnouncementSpider(scrapy.Spider):
         self.spider_info = get_spider_info(self.spider_id)
 
         # 当增量爬取时，爬取结束时间改为最后一次抓取到的公告时间
-        if self.mode == CrawlMode.INCREMENT and self.has_ext_arg('last_crawl_detail_time'):
-            self.crawl_end_time = datetime.datetime.strptime(self.ext_args.get('last_crawl_detail_time'), DATE_TIME_FORMAT)
+        if self.mode == CrawlMode.INCREMENT and self.has_ext_arg('last_crawl_time'):
+            last_crawl_time = datetime.datetime.strptime(self.ext_args.get('last_crawl_time'), DATE_TIME_FORMAT)
+            if last_crawl_time > self.crawl_end_time:
+                self.crawl_end_time = last_crawl_time
 
         # 加载解析器
         # 详情请求构造器
@@ -83,8 +88,6 @@ class AnnouncementSpider(scrapy.Spider):
 
         self.detail_url_list = []
         self.last_crawl_time = None
-
-
 
     def start_requests(self):
         try:
@@ -176,7 +179,12 @@ class AnnouncementSpider(scrapy.Spider):
 
     def after_crawl_detail(self, response: Response):
         self.logger.info(response.url)
-        if response.status == 200:
+        crawl_html = {'id': get_uuid(), 'spider_id': self.spider_id, 'url': response.url,
+                      'content': response.text, 'type': self.spider_info.an_type,
+                      'section': 0}
+
+        message = write_response_to_db(crawl_html)  # 调用方法使response数据入库
+        if message['code'] == '200':
             self.crawl_num += 1
 
     def start_resolve(self):
@@ -202,7 +210,6 @@ class AnnouncementSpider(scrapy.Spider):
         }
 
         update_task_status(result)
-
 
     # 解析列表页面信息
     def resolve_page(self, response) -> PageAttribute:
