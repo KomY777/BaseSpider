@@ -46,9 +46,5 @@ def remote_import(url, module_name):
     exec(code, module.__dict__)
     sys.modules[module_name] = module
 
-    # spec = importlib.util.spec_from_file_location(module_name, url)
-    # module = importlib.util.module_from_spec(spec)
-    # spec.loader.exec_module(module)
-
     obj = getattr(module, module_name)()
     return obj

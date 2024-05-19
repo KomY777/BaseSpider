@@ -1,5 +1,5 @@
 import requests
-from BaseSpider.settings import SCHEDULE_ADMIN_SERVER_URL, ANNOUCEMENT_DB_SERVER_URL
+from BaseSpider.settings import SCHEDULE_ADMIN_SERVER_URL, ANNOUNCEMENT_DB_SERVER_URL
 
 
 class ScheduleAdminRequest(object):
@@ -21,7 +21,7 @@ class AnnouncementDBRequest(object):
         self.session = requests.session()  # 初始化一个保存session的方法
 
     def request(self, url, data=None, headers=None):
-        return self.session.post(url=ANNOUCEMENT_DB_SERVER_URL + url, data=data, headers=headers)
+        return self.session.post(url=ANNOUNCEMENT_DB_SERVER_URL + url, data=data, headers=headers)
 
     def close(self):
         """断开session连接的方法"""

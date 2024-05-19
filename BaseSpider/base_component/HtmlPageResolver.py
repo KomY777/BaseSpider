@@ -24,18 +24,6 @@ class HtmlPageResolver(ABC):
         obj = m_class()
         return obj
 
-    def get_subcomponent_data(self):
-        page_attr = {}
-        for index, item in enumerate(self.sub_component_list):
-            self.sub_resolver = self.resolver_loader(self.BASE_PATH + item['class_path'])
-            setattr(self.sub_resolver, 'page_attr', page_attr)
-            setattr(self.sub_resolver, 'response_url', self.response_url)
-            setattr(self.sub_resolver, 'response_text', Selector(text=self.response_text))
-            setattr(self.sub_resolver, 'annoucement_type', self.annoucement_type)
-            # todo 判断达标率 用不用进入下一个子解析器
-            page_attr = getattr(self.sub_resolver, 'resolver_page')()
-        return page_attr
-
     # 解析页面
     # 延迟到子类实现
     @abstractmethod

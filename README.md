@@ -35,7 +35,12 @@ class DaemonStatus(WsResource):
 
 ```shell
 cd scrapyd
+
 scrapyd
 
 scrapyd-deploy BASE_SPIDER -p default
+
+cd ../
+
+scrapyd-deploy
 ```

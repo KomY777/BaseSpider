@@ -13,8 +13,6 @@ def get_spider_info(spider_id):
     spider.id = info['id']
     spider.name = info['name']
     spider.an_type = info['an_type']
-    spider.section_page_size = info['section_page_size']
-    spider.redis_key = info['name']
     spider.url = info['url']
     spider.body = info['body']
     spider.method = info['method']
@@ -25,14 +23,13 @@ def get_spider_info(spider_id):
     spider.param = None
 
     spider.resolvers = {
-        'REQ_URL': [],
-        'READ_UL': [],
-        'REQ_NEXT_PAGE': [],
+        'REQ_DETAIL': [],
+        'READ_PAGE': [],
+        'REQ_PAGE': [],
         'READ_HM': []
     }
     for resolver in spider_info['resolvers']:
-        spider.resolvers[resolver['type']].append(FILE_SERVER_URL + resolver['class_path'])
-        spider.resolvers[resolver['type']].append(resolver['class_name'])
+        spider.resolvers[resolver['type']].append('BaseSpider.base_component.' + resolver['class_path'])
     return spider
 
 def update_task_status(data):

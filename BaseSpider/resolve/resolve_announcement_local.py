@@ -1,10 +1,5 @@
 import json
 import logging
-import re
-import sys
-import threading
-import time
-from json import JSONDecodeError
 from concurrent.futures.thread import ThreadPoolExecutor
 from BaseSpider.tool.CountDownLatch import CountDownLatch
 from BaseSpider.tool.RequestTool import HttpSession
@@ -22,13 +17,12 @@ from BaseSpider.tool.judge_tool.intention_judge import intention_judge
 from BaseSpider.tool.judge_tool.med_an_judge import med_an_judge
 from BaseSpider.tool.moneyType_tool.ProcessMoney_adapter import process_money
 from BaseSpider.api.admin import get_spider_info
+from BaseSpider.api.announcement_db import instance as AnnouncementDBRequest
 
 # 数据库加载配置信息
 SPIDER_PARAMS_MAP = {
     # 爬虫名
     'NAME': 'BASE_SPIDER',
-    # redis 键值
-    'REDIS_KEY': 'temp_key',
     # 爬虫公告类型
     'AN_TYPE': 'the announcement type of spider',
     # 解析器基础路径
@@ -42,11 +36,10 @@ SPIDER_PARAMS_MAP = {
 class MultithreadingAnalysis:
     logging.getLogger().setLevel(logging.INFO)  # 设置日志级别为info
 
-    def __init__(self, spider_id, section):
-        self.http = HttpSession()
+    def __init__(self, spider_id):
+        self.http = AnnouncementDBRequest
         self.spider_id = spider_id
-        self.section = section  # 已入库数量(考虑是否放掉)
-        self.thread_pool = ThreadPoolExecutor(max_workers=10)  # 线程池(最大线程数为10)
+        self.thread_pool = ThreadPoolExecutor(max_workers=5)  # 线程池(最大线程数为10)
         self.count_down_latch = CountDownLatch(count=0)
         self.already_resolved_num = 0  # 已解析数量
 
@@ -58,43 +51,24 @@ class MultithreadingAnalysis:
         # 设置公告类型
         this_spider = get_spider_info(self.spider_id)
         SPIDER_PARAMS_MAP['AN_TYPE'] = this_spider.an_type
-
+        SPIDER_PARAMS_MAP['ASSEMBLY_S'] = []
         for resolve in this_spider.resolvers.get('READ_HM'):
-            SPIDER_PARAMS_MAP['ASSEMBLY_S'] = []
-
             # 设置组件路径
             SPIDER_PARAMS_MAP['ASSEMBLY_S'].append(resolve)
 
-    def data_load(self):
+    def data_load(self, data):
         """
         使用线程池加载页面进行解析
         :return:
         """
-        response = self.http.request(r'chtml_query_by_spider_id', {'spider_id': self.spider_id,
-                                                                   'section': self.section}).json()
-        if len(response['data_list']) != 0:
+        if len(data) != 0:
             # 将这些页面id存入数据队列
-            for item in response['data_list']:
+            for item in data:
                 self.thread_pool.submit(self.parse_response_data, item).add_done_callback(self.call_back)
-
-            # 设置同步锁
-            self.count_down_latch.count = len(response['data_list'])
-
-            # 等待所有加入才可结束
+            self.count_down_latch.count = len(data)
             self.count_down_latch.wait()
-
-            # 递归遍历
-            self.data_load()
         else:
             logging.info('no data to resolve')
-
-    def parse_response_data(self, response_id):
-        """
-        线程方法
-        :param response_id:
-        :return:
-        """
-        ResolveResponse(self.spider_id).parse_response_data(response_id)
 
     def call_back(self, res):
         """
@@ -109,56 +83,16 @@ class MultithreadingAnalysis:
         self.already_resolved_num += 1
         logging.info(str(self.already_resolved_num) + ' resolve finished')
 
-    def run(self):
-        """
-        启动方法
-        :return:
-        """
-        self.load_resolver_path()  # 更新父组件版本号
-        self.data_load()
-
-
-class ResolveResponse:
-
-    def __init__(self, spider_id):
-        self.spider_id = spider_id
-        self.http = HttpSession()
-
-    def parse_response_data(self, response_id):
-        """
-        解析response起始方法
-        :param response_id:
-        :return:
-        """
-        response = self.get_response_data_by_id(response_id)  # 通过id得到response数据
-
-        self.parse_response_data1(response)
-
-    def get_response_data_by_id(self, id):
-        """
-        根据id查询response数据
-        :param id:
-        :return:
-        """
-        result = self.http.request(r'chtml_query_by_id', {'id': id}).json()
-        return result['html']
-
-    def parse_response_data1(self, response):
+    def parse_response_data(self, data):
         """
         数据解析、信息入库
         """
         try:
-            page_attr = self.resolve_announce(response['content'], response['url'])  # 解析页面
+            page_attr = self.resolve_announce(data['content'], data['url'])  # 解析页面
         except Exception as e:
-            self.http.request(r'chtml_update_section_neg', {'response_id': response['id'],
-                                                            'section': (int(response['section']) - 1)})
-            logging.info("Resolve    Error：" + str(e))
+            logging.error("Resolve    Error：" + str(e))
             logging.exception("Resolve    Error：")
             return None
-        self.http.request(r'chtml_update_section_neg', {'response_id': response['id'],
-                                                        'section': (int(response['section']) - 1)})
-        logging.info(str(threading.currentThread().getName()) + ' start resolve, response_id: %s, an_type: %s' % (
-            response['id'], SPIDER_PARAMS_MAP['AN_TYPE']))
 
         if not page_attr:
             page_attr = {}
@@ -200,7 +134,6 @@ class ResolveResponse:
             # 解析失败后判断是否进入下个解析器
             if not calibrate:
                 if index == length - 1:
-                    self.write_ResolverExceptionRecord(crawl_url=response_url, reason='解析失败1')
                     return {}
                 continue
             # 解析成功
@@ -208,7 +141,6 @@ class ResolveResponse:
                 # 判断公告标题是否存在
                 _title = page_attr[SPIDER_PARAMS_MAP['AN_TYPE']]['title']
                 if _title == '' or _title is None:
-                    self.write_ResolverExceptionRecord(crawl_url=response_url, reason='公告未获取标题')
                     return {}
                 page_attr['an_type'] = SPIDER_PARAMS_MAP['AN_TYPE']
 
@@ -236,7 +168,7 @@ class ResolveResponse:
     def write_ann_to_db(self, item):
         try:
             x = json.dumps(item)
-            an_id = self.http.request(r'add_an_to_db', {'item': x}).json()
+            an_id = self.http.request(r'/add_an_to_db', {'item': x}).json()
             an_id = an_id['an_id']
             return {'an_id': an_id, 'error': None}
         except AttributeError as abe:
@@ -246,9 +178,10 @@ class ResolveResponse:
             logging.warning('Data into inventory is error：' + str(e.args))
             return {'an_id': None, 'exception_type': 'resolver exception', 'reason': e}
 
-
-if __name__ == '__main__':
-    begin_time = time.time()
-    MultithreadingAnalysis(int(sys.argv[1]), '-1').run()
-    end_time = time.time()
-    print('use', (end_time - begin_time))
+    def run(self, data):
+        """
+        启动方法
+        :return:
+        """
+        self.load_resolver_path()  # 更新父组件版本号
+        self.data_load(data)
