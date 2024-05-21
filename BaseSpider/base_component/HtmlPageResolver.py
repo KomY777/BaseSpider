@@ -9,7 +9,7 @@ from scrapy import Selector
 class HtmlPageResolver(ABC):
     BASE_PATH = 'BaseSpider.base_component.'
     sub_component_list: list
-    response_text: str
+    response_text = None
     response_url: str
     annoucement_type: str
 

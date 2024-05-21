@@ -52,8 +52,8 @@ class AnnouncementSpider(scrapy.Spider):
                 self.crawl_start_time = datetime.datetime.fromtimestamp(int(kwargs.get('range_end_time')))
             # 日期字符串格式
             else:
-                self.crawl_end_time = datetime.datetime.strptime(kwargs.get('range_start_time'), '%Y-%m-%d')
-                self.crawl_start_time = datetime.datetime.strptime(kwargs.get('range_end_time'), '%Y-%m-%d')
+                self.crawl_end_time = datetime.datetime.strptime(kwargs.get('range_start_time'), DATE_TIME_FORMAT)
+                self.crawl_start_time = datetime.datetime.strptime(kwargs.get('range_end_time'), DATE_TIME_FORMAT)
 
             self.logger.info(f'>>> crawl_start_time: {self.crawl_start_time}, crawl_end_time: {self.crawl_end_time}')
 
@@ -88,11 +88,9 @@ class AnnouncementSpider(scrapy.Spider):
             self.last_crawl_time = None
         except Exception as e:
             self.logger.exception(f">>> init error: {e}")
-            update_task_status({
-                'task_id': self.task_id,
-                'status': TaskStatus.ERROR
-            })
+            self.close('error')
 
+    #           self.logger.exception(e)
     def start_requests(self):
         try:
             if 'LOG_FILE' in self.crawler.settings.attributes and self.crawler.settings.attributes['LOG_FILE'].value is not None:
@@ -117,8 +115,8 @@ class AnnouncementSpider(scrapy.Spider):
 
         except Exception as e:
             self.logger.error(f">>> parse error: {e}")
-            raise e
-    #
+            self.crawler.engine.close_spider(self, str(e))
+
     # def test(self, resp):
     #     time = random.randint(20, 50)
     #     sleep(time)
@@ -171,7 +169,8 @@ class AnnouncementSpider(scrapy.Spider):
             yield self.generate_page_request(self.cur_page, self.binary_search)
         except Exception as e:
             self.logger.error(f">>> binary_search error: {e}")
-            raise e
+            self.logger.exception(e)
+            self.crawler.engine.close_spider(self, str(e))
 
     def crawl_page(self, response: Response):
         try:
@@ -180,17 +179,19 @@ class AnnouncementSpider(scrapy.Spider):
             if self.last_crawl_time is None:
                 self.last_crawl_time = page_attr.newest_time
             # 当前页最新一条晚于 crawl_end_time
+            self.logger.info(f">>> page_newest_time: {page_attr.newest_time}")
             if page_attr.newest_time < self.crawl_end_time:
                 self.logger.info(f">>> crawl end, page_newest_time: {page_attr.newest_time}")
                 yield from self.crawl_detail()
                 return
-
-            self.detail_url_list.append(page_attr.urls.pop())
+            self.logger.info(f">>> crawl urls count: {len(page_attr.urls)}")
+            self.detail_url_list.extend(page_attr.urls)
             self.cur_page += 1
             yield self.generate_page_request(self.cur_page, self.crawl_page)
         except Exception as e:
             self.logger.error(f">>> crawl_page error: {e}")
-            raise e
+            self.logger.exception(e)
+            self.crawler.engine.close_spider(self, str(e))
 
     def crawl_detail(self):
         try:
@@ -198,7 +199,8 @@ class AnnouncementSpider(scrapy.Spider):
                 yield self.generate_detail_request(url, self.after_crawl_detail)
         except Exception as e:
             self.logger.error(f">>> crawl_detail error: {e}")
-            raise e
+            self.logger.exception(e)
+            self.crawler.engine.close_spider(self, str(e))
 
     def after_crawl_detail(self, response: Response):
         self.logger.info(response.url)
@@ -224,24 +226,29 @@ class AnnouncementSpider(scrapy.Spider):
         except Exception as e:
             self.logger.error(f"resolve error: {e}")
 
-        self.logger.info(f'>>> crawl done, crawl num: {self.crawl_num}, resolve_num: {self.resolve_num}')
         status = TaskStatus.COMPLETED if reason == 'finished' else TaskStatus.ERROR
 
-        result = {
-            'task_id': self.task_id,
-            'status': status,
-            'total_crawl': self.crawl_num,
-            'total_resolve': self.resolve_num,
-            'log_url': self.log_url
-        }
+        try:
+            result = {
+                'task_id': self.task_id,
+                'status': status,
+                'total_crawl': self.crawl_num,
+                'total_resolve': self.resolve_num,
+                'log_url': self.log_url
+            }
+            if self.crawl_num > 0:
+                result['last_crawl_url'] = self.detail_url_list.pop() if len(self.detail_url_list) > 0 else None,
+                result['last_crawl_time'] = self.last_crawl_time.timestamp() if self.last_crawl_time is not None else None,
+            self.logger.info(f'>>> update task status: {json.dumps(result)}')
+            update_task_status(result)
+        except Exception as e:
+            self.logger.error(f"update_task_status error: {e}")
+            self.logger.exception(e)
+            update_task_status({
+                'task_id': self.task_id,
+                'status': TaskStatus.ERROR,
+            })
 
-        if self.crawl_num > 0:
-            result['last_crawl_url'] = self.detail_url_list.pop() if len(self.detail_url_list) > 0 else None,
-            result['last_crawl_time'] = self.last_crawl_time.timestamp() if self.last_crawl_time is not None else None,
-
-        self.logger.info(f'>>> update task status: {json.dumps(result)}')
-
-        update_task_status(result)
 
     # 解析列表页面信息
     def resolve_page(self, response) -> PageAttribute:
@@ -253,7 +260,8 @@ class AnnouncementSpider(scrapy.Spider):
             return page_attr
         except Exception as e:
             self.logger.error(f"resolve_page error: {e}")
-            raise e
+            self.logger.exception(e)
+            self.crawler.engine.close_spider(self, str(e))
 
     def generate_page_request(self, page, callback) -> Request:
         try:
@@ -266,7 +274,8 @@ class AnnouncementSpider(scrapy.Spider):
             return request
         except Exception as e:
             self.logger.error(f"generate_page_request error: {e}")
-            raise e
+            self.logger.exception(e)
+            self.crawler.engine.close_spider(self, str(e))
 
     def generate_detail_request(self, url, callback) -> Request:
         try:
@@ -279,4 +288,5 @@ class AnnouncementSpider(scrapy.Spider):
             return request
         except Exception as e:
             self.logger.error(f"generate_detail_request error: {e}")
-            raise e
+            self.logger.exception(e)
+            self.crawler.engine.close_spider(self, str(e))

@@ -17,11 +17,6 @@ def remove1(orstr: str) -> str:
     return regex.sub('', orstr)
 
 
-def AG_L_remove(orstr: str) -> str:
-    regex = re.compile(r'<[^>]+>|\n|\t| |\xa0|\r', re.S)
-    return regex.sub('', orstr)
-
-
 def provide_unit_address_remove(orstr: str) -> str:
     # 将特殊字符替换成中文逗号
     orstr = re.sub(r'<[^>]+>|&amp;|\n|\t|\xa0|\r|中标供应商名称、联系地址及中标金额', '，', orstr)
