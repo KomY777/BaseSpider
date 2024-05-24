@@ -31,10 +31,8 @@ class GGZY_CB_G_ReadHmResolver(HtmlPageResolver):
                   'bid_sale_op_time', 'bid_sale_en_time', 'bid_sale_place', 'bid_price', 'sourse_url', 'bid_time',
                   'title', 'web_site', 'source_web_name']
 
-    def __int__(self):
-        self.response_text = Selector(text=self.response_text)
-
     def resolver_page(self) -> dict:
+        self.response_text = Selector(text=self.response_text)
         try:
             title = self.response_text.xpath('//h4[@class="h4_o"]/text()').extract_first()
             if title and re.search('更正|变更|中标|开标', title):

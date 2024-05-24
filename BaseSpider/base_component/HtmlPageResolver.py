@@ -12,6 +12,7 @@ class HtmlPageResolver(ABC):
     response_text = None
     response_url: str
     annoucement_type: str
+    page_attr = {}
 
     @staticmethod
     def resolver_loader(classpath):

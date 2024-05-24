@@ -20,10 +20,8 @@ class GGZY_WB_G_ReadHmResolver(HtmlPageResolver):
                   'agent_unit_m', 'sourse_url', 'bid_time', 'provide_unit', 'review_time',
                   'review_place', 'title', 'web_site', 'source_web_name']
 
-    def __int__(self):
-        self.response_text = Selector(text=self.response_text)
-
     def resolver_page(self) -> dict:
+        self.response_text = Selector(text=self.response_text)
         response = self.response_text.response.body.decode('utf-8')
         html_list = util.parseHtml_list(response)
 

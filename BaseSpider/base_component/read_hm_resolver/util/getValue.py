@@ -2,7 +2,7 @@ import numpy
 import re
 from decimal import Decimal
 
-from BaseSpider.base_component.announcement_page_resolver.ZGZF_Annoucement.table_contents import obtain_td_matrix
+from BaseSpider.base_component.read_hm_resolver.util.table_contents import obtain_td_matrix
 from BaseSpider.base_component.utils.util import provide_unit_address_remove
 
 

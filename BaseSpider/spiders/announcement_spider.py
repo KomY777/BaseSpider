@@ -175,6 +175,12 @@ class AnnouncementSpider(scrapy.Spider):
     def crawl_page(self, response: Response):
         try:
             self.logger.info(f">>> crawl_page: {self.cur_page}")
+            # 中国政府采购网半小时内最多抓5次
+            if str(self.spider_id) in ['47', '44'] and self.cur_page > 4:
+                self.logger.info(f">>> 超过限制页数，停止爬取")
+                yield from self.crawl_detail()
+                return
+
             page_attr = self.resolve_page(response)
             if self.last_crawl_time is None:
                 self.last_crawl_time = page_attr.newest_time
@@ -191,7 +197,7 @@ class AnnouncementSpider(scrapy.Spider):
         except Exception as e:
             self.logger.error(f">>> crawl_page error: {e}")
             self.logger.exception(e)
-            self.crawler.engine.close_spider(self, str(e))
+            yield from self.crawl_detail()
 
     def crawl_detail(self):
         try:
@@ -207,10 +213,10 @@ class AnnouncementSpider(scrapy.Spider):
         crawl_html = {'id': get_uuid(), 'spider_id': self.spider_id, 'url': response.url,
                       'content': response.text, 'type': self.spider_info.an_type,
                       'section': 0}
-        self.response_list.append(crawl_html)
         message = write_response_to_db(crawl_html)
         if message['code'] == '200':
             self.crawl_num += 1
+            self.response_list.append(crawl_html)
         self.logger.info(json.dumps(message))# 调用方法使response数据入库
 
     def start_resolve(self):
@@ -237,8 +243,10 @@ class AnnouncementSpider(scrapy.Spider):
                 'log_url': self.log_url
             }
             if self.crawl_num > 0:
-                result['last_crawl_url'] = self.detail_url_list.pop() if len(self.detail_url_list) > 0 else None,
-                result['last_crawl_time'] = self.last_crawl_time.timestamp() if self.last_crawl_time is not None else None,
+                if len(self.detail_url_list) > 0:
+                    result['last_crawl_url'] = self.detail_url_list.pop()
+                if self.last_crawl_time is not None:
+                    result['last_crawl_time'] = self.last_crawl_time.timestamp()
             self.logger.info(f'>>> update task status: {json.dumps(result)}')
             update_task_status(result)
         except Exception as e:

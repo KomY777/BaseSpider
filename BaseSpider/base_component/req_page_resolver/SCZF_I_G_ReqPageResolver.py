@@ -1,14 +1,9 @@
-from urllib.parse import parse_qs
-
 from scrapy import FormRequest
 
 from BaseSpider.base_component.RequestResolver import RequestResolver
-import datetime
 
-ZGZF_START_TIME = datetime.datetime.now().strftime('%Y')+':01:01'
-ZGZF_END_TIME = datetime.datetime.now().strftime('%Y:%m:%d')
 
-class ZGZF_AG_L_ReqPageResolver(RequestResolver):
+class SCZF_I_G_ReqPageResolver(RequestResolver):
     """
     允许自定义代码
     """
@@ -16,18 +11,16 @@ class ZGZF_AG_L_ReqPageResolver(RequestResolver):
     def general_param(self) -> dict:
         # 必须在子方法中进行父方法调用
         super().general_param()
-
         # 以下为自定义代码
         gen_param = {}
-
-        page_number = self.page_num
-        url = 'http://jczy.ccgp.gov.cn/gs1/gs1agentreg/getPubList.regx'
-        body = 'page={page}&rows=30&sort=regValidDate&order=desc'.format(page=page_number)
+        url = 'https://zfcg.scsczt.cn/freecms/rest/v1/notice/selectInfoMoreChannel.do?&siteId=94c965cc-c55d-4f92-8469' \
+              '-d5875c68bd04&channel=c5bff13f-21ca-4dac-b158-cb40accd3035&currPage={num}&pageSize=10&noticeType=59' \
+              '&regionCode=&purchaseManner=&title=&openTenderCode=&purchaser=&agency=&purchaseNature' \
+              '=&operationStartTime=&operationEndTime=&selectTimeName=noticeTime&cityOrArea='.format(num=self.page_num)
         call_back = self.req_attr.call_back
-        method = 'POST'
+        method = 'GET'
 
         gen_param['url'] = url
-        gen_param['body'] = body
         gen_param['call_back'] = call_back
         gen_param['method'] = method
 
@@ -39,21 +32,15 @@ class ZGZF_AG_L_ReqPageResolver(RequestResolver):
 
         '''
         以下为允许自定义方法
-
         '''
-        # 将字符串转换为字典
-        params = parse_qs(self.body)
-        result = {key: params[key][0] for key in params}
-        result['start_time'] = ZGZF_START_TIME
-        result['end_time'] = ZGZF_END_TIME
-
         request = FormRequest(
             self.url,
+            encoding='utf-8',
             callback=self.m_parse,
             method=self.method,
-            formdata=result,
-            dont_filter=self.dont_filter
+            dont_filter=self.dont_filter,
         )
+
         return request
 
     def m_parse(self, response):

@@ -22,6 +22,7 @@ from BaseSpider.tool.judge_tool.intention_judge import intention_judge
 from BaseSpider.tool.judge_tool.med_an_judge import med_an_judge
 from BaseSpider.tool.moneyType_tool.ProcessMoney_adapter import process_money
 from BaseSpider.api.admin import get_spider_info
+from BaseSpider.api.announcement_db import instance as AnnouncementDBRequest
 
 # 数据库加载配置信息
 SPIDER_PARAMS_MAP = {
@@ -40,13 +41,12 @@ SPIDER_PARAMS_MAP = {
 
 
 class MultithreadingAnalysis:
-    logging.getLogger().setLevel(logging.INFO)  # 设置日志级别为info
 
     def __init__(self, spider_id, section):
-        self.http = HttpSession()
+        self.http = AnnouncementDBRequest
         self.spider_id = spider_id
         self.section = section  # 已入库数量(考虑是否放掉)
-        self.thread_pool = ThreadPoolExecutor(max_workers=10)  # 线程池(最大线程数为10)
+        self.thread_pool = ThreadPoolExecutor(max_workers=5)  # 线程池(最大线程数为10)
         self.count_down_latch = CountDownLatch(count=0)
         self.already_resolved_num = 0  # 已解析数量
 
@@ -70,7 +70,7 @@ class MultithreadingAnalysis:
         使用线程池加载页面进行解析
         :return:
         """
-        response = self.http.request(r'chtml_query_by_spider_id', {'spider_id': self.spider_id,
+        response = self.http.request(r'/chtml_query_by_spider_id', {'spider_id': self.spider_id,
                                                                    'section': self.section}).json()
         if len(response['data_list']) != 0:
             # 将这些页面id存入数据队列
@@ -122,7 +122,7 @@ class ResolveResponse:
 
     def __init__(self, spider_id):
         self.spider_id = spider_id
-        self.http = HttpSession()
+        self.http = AnnouncementDBRequest
 
     def parse_response_data(self, response_id):
         """
@@ -140,7 +140,7 @@ class ResolveResponse:
         :param id:
         :return:
         """
-        result = self.http.request(r'chtml_query_by_id', {'id': id}).json()
+        result = self.http.request(r'/chtml_query_by_id', {'id': id}).json()
         return result['html']
 
     def parse_response_data1(self, response):
@@ -150,12 +150,12 @@ class ResolveResponse:
         try:
             page_attr = self.resolve_announce(response['content'], response['url'])  # 解析页面
         except Exception as e:
-            self.http.request(r'chtml_update_section_neg', {'response_id': response['id'],
+            self.http.request(r'/chtml_update_section_neg', {'response_id': response['id'],
                                                             'section': (int(response['section']) - 1)})
             logging.info("Resolve    Error：" + str(e))
             logging.exception("Resolve    Error：")
             return None
-        self.http.request(r'chtml_update_section_neg', {'response_id': response['id'],
+        self.http.request(r'/chtml_update_section_neg', {'response_id': response['id'],
                                                         'section': (int(response['section']) - 1)})
         logging.info(str(threading.currentThread().getName()) + ' start resolve, response_id: %s, an_type: %s' % (
             response['id'], SPIDER_PARAMS_MAP['AN_TYPE']))
@@ -200,7 +200,6 @@ class ResolveResponse:
             # 解析失败后判断是否进入下个解析器
             if not calibrate:
                 if index == length - 1:
-                    self.write_ResolverExceptionRecord(crawl_url=response_url, reason='解析失败1')
                     return {}
                 continue
             # 解析成功
@@ -208,7 +207,6 @@ class ResolveResponse:
                 # 判断公告标题是否存在
                 _title = page_attr[SPIDER_PARAMS_MAP['AN_TYPE']]['title']
                 if _title == '' or _title is None:
-                    self.write_ResolverExceptionRecord(crawl_url=response_url, reason='公告未获取标题')
                     return {}
                 page_attr['an_type'] = SPIDER_PARAMS_MAP['AN_TYPE']
 
@@ -236,7 +234,7 @@ class ResolveResponse:
     def write_ann_to_db(self, item):
         try:
             x = json.dumps(item)
-            an_id = self.http.request(r'add_an_to_db', {'item': x}).json()
+            an_id = self.http.request(r'/add_an_to_db', {'item': x}).json()
             an_id = an_id['an_id']
             return {'an_id': an_id, 'error': None}
         except AttributeError as abe:
@@ -249,6 +247,6 @@ class ResolveResponse:
 
 if __name__ == '__main__':
     begin_time = time.time()
-    MultithreadingAnalysis(int(sys.argv[1]), '-1').run()
+    MultithreadingAnalysis(1001, '0').run()
     end_time = time.time()
     print('use', (end_time - begin_time))

@@ -34,10 +34,9 @@ class ZGZF_CB_G_ReadHmResolver(HtmlPageResolver):
                'web_site': 'http://http://www.ccgp.gov.cn/', 'source_web_name': '中国政府采购网'
                }
 
-    def __int__(self):
-        self.response_text = Selector(text=self.response_text)
 
     def resolver_page(self) -> dict:
+        self.response_text = Selector(text=self.response_text)
         try:
             content = standardization(self.getInquiryGovernment())
             code_dict = self.getCodeHtml()

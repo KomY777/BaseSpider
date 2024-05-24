@@ -15,11 +15,9 @@ CONST_PARAM = {
 
 
 class ZGZF_AG_L_ReadHmResolver(HtmlPageResolver):
-    def __init__(self):
-        self.all_item = {}
-        self.response_text = Selector(text=self.response_text)
+    all_item = {}
 
-        self.content = {"title": '默认', "OrgName": None, "OrgCode": None, "UpId": None, "UpName": None, "IdentityState": None,
+    content = {"title": '默认', "OrgName": None, "OrgCode": None, "UpId": None, "UpName": None, "IdentityState": None,
                         "ImportTime": None, "MainProperty": None, "BusTerm": None, "FoundTime": None, "RegMoney": None,
                         "Linkman": None, "LinkmanName": None, "LinkmanPhone": None, "Remark": None, "LocalProv": None,
                         "LocalProvName": None, "LocalCity": None, "LocalCityName": None, "LocalCounty": None,
@@ -32,6 +30,8 @@ class ZGZF_AG_L_ReadHmResolver(HtmlPageResolver):
                         }
 
     def resolver_page(self) -> dict:
+        self.response_text = Selector(text=self.response_text)
+
         try:
             content = self.getAgencyList()
             code_dict = []

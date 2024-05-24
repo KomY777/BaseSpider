@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 import random
-
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-
 from BaseSpider.tool.RequestTool import HttpSession
+
+import warnings
+
+# 忽略来自scrapy.selector.unified模块的UserWarning
+warnings.filterwarnings('ignore', category=UserWarning, module='scrapy.selector.unified')
 
 BOT_NAME = 'BaseSpider'
 

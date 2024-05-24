@@ -151,19 +151,16 @@ class BasespiderDownloaderMiddleware(object):
         """当下载器完成http请求，返回响应给引擎的时候调用process_response"""
 
         if response.status in self.retry_http_codes:
-            copyproxies = copy.deepcopy(self.proxies)  # 深度拷贝代理ip
-            copyproxies.remove(self.proxy)  # 将目前使用ip从中移除
-            proxy = random.choice(copyproxies)  # 随机选择一个ip
-            if proxy:  # 是代理ip
-                res = self.getHtml(request)
-                print(res)
-                if res is not None:
-                    return res
-                request.meta['proxy'] = ''
+            # copyproxies = copy.deepcopy(self.proxies)  # 深度拷贝代理ip
+            # copyproxies.remove(self.proxy)  # 将目前使用ip从中移除
+            # proxy = random.choice(copyproxies)  # 随机选择一个ip
+            # if proxy:  # 是代理ip
+            #     res = self.getHtml(request)
+            #     print(res)
+            #     if res is not None:
+            #         return res
+            #     request.meta['proxy'] = ''
             self.errorcount += 1
-            if spider.base_redis_key =='Cqggzy_win':
-                response.status = 200
-                return response
             time.sleep(5)
             if self.errorcount > 5:
                 logging.error('error status'+str(response.status), exc_info=True)

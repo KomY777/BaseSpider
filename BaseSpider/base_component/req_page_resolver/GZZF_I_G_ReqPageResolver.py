@@ -1,15 +1,11 @@
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urlencode
 
 from scrapy import FormRequest
 
 from BaseSpider.base_component.RequestResolver import RequestResolver
-import datetime
-
-ZGZF_START_TIME = datetime.datetime.now().strftime('%Y')+':01:01'
-ZGZF_END_TIME = datetime.datetime.now().strftime('%Y:%m:%d')
 
 
-class ZGZF_CB_G_ReqPageResolver(RequestResolver):
+class GZZF_I_G_ReqPageResolver(RequestResolver):
     """
     允许自定义代码
     """
@@ -20,13 +16,11 @@ class ZGZF_CB_G_ReqPageResolver(RequestResolver):
 
         # 以下为自定义代码
         gen_param = {}
-
-        page_number = self.page_num
-        url = 'http://search.ccgp.gov.cn/bxsearch'
-        body = 'searchtype=1&bidType=1&page_index={index}&timeType=6'.format(index=page_number)
-
+        url = 'http://www.ccgp-guizhou.gov.cn/front/search/category'
+        body = '{"districtCode":["520","522","529900"],"utm":"sites_group_front.5b1ba037.0.0.e51c1f00e0c411eca0e9c9663bd9c5bf",' \
+               '"categoryCode":"ZcyAnnouncement10016","pageSize":15,"pageNo":' + str(self.page_num) + '}'
         call_back = self.req_attr.call_back
-        method = 'GET'
+        method = 'POST'
 
         gen_param['url'] = url
         gen_param['body'] = body
@@ -41,33 +35,27 @@ class ZGZF_CB_G_ReqPageResolver(RequestResolver):
 
         '''
         以下为允许自定义方法
-
         '''
-        # 将字符串转换为字典
-        params = parse_qs(self.body)
-        result = {key: params[key][0] for key in params}
-        result['start_time'] = ZGZF_START_TIME
-        result['end_time'] = ZGZF_END_TIME
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0'
+            "accept": "*/*",
+            "accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+            "cache-control": "no-cache",
+            "content-type": "application/json",
+            "pragma": "no-cache",
+            "x-requested-with": "XMLHttpRequest",
+            "user-agent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.53 Safari/537.36 Edg/103.0.1264.37'
         }
-
         request = FormRequest(
             self.url,
+            encoding='utf-8',
             callback=self.m_parse,
             method=self.method,
-            formdata=result,
+            body=self.body,
             headers=headers,
-            dont_filter=self.dont_filter
+            dont_filter=self.dont_filter,
         )
+
         return request
 
     def m_parse(self, response):
         pass
-
-
-
-
-
-
-

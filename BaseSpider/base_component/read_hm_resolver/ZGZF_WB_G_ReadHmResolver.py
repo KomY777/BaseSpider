@@ -19,10 +19,8 @@ CONST_PARAM = {
 
 
 class ZGZF_WB_G_ReadHmResolver(HtmlPageResolver):
-    def __init__(self):
-        self.all_item = {}
-        self.response_text = Selector(text=self.response_text)
-        self.content = {"proj_name": None, "proj_code": None, "proj_item": None, "call_unit": None, "region": None,
+    all_item = {}
+    content = {"proj_name": None, "proj_code": None, "proj_item": None, "call_unit": None, "region": None,
                         "ancm_time": None, "actual_price": None, "proj_rel_p": None, "proj_rel_m": None,
                         "agent_unit_p": None,
                         "agent_unit_m": None, "other_ex": None, "purchase_m": None, "sourse_url": None,
@@ -35,6 +33,7 @@ class ZGZF_WB_G_ReadHmResolver(HtmlPageResolver):
                         }
 
     def resolver_page(self) -> dict:
+        self.response_text = Selector(text=self.response_text)
         try:
             self.content = standardization(self.getWinBidGovernment())
             code_dict = self.getCodeHtml()
