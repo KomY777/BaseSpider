@@ -1,3 +1,8 @@
+# 下载依赖
+```shell
+pip install -r requirements.txt
+```
+# 部署前配置
 将以下代码替换 scrapyd第三方库文件里的webservice.py文件中的DaemonStatus类
 ```python
 
@@ -33,14 +38,12 @@ class DaemonStatus(WsResource):
         }
 ```
 
+# 打包
 ```shell
 cd scrapyd
 
 scrapyd
 
-scrapyd-deploy BASE_SPIDER -p default
-
-cd ../
-
-scrapyd-deploy
+scrapyd-deploy -F egg=output.egg  
 ```
+将打包后的egg文件通过web部署到scrapyd服务
