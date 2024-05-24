@@ -184,12 +184,19 @@ class AnnouncementSpider(scrapy.Spider):
             page_attr = self.resolve_page(response)
             if self.last_crawl_time is None:
                 self.last_crawl_time = page_attr.newest_time
+
             # 当前页最新一条晚于 crawl_end_time
             self.logger.info(f">>> page_newest_time: {page_attr.newest_time}")
             if page_attr.newest_time < self.crawl_end_time:
                 self.logger.info(f">>> crawl end, page_newest_time: {page_attr.newest_time}")
                 yield from self.crawl_detail()
                 return
+
+            if self.init_kwargs.get('last_crawl_url') is not None and self.init_kwargs.get('last_crawl_url') in page_attr.urls:
+                self.logger.info(f">>> last crawl url in urls, stop crawl")
+                yield from self.crawl_detail()
+                return
+
             self.logger.info(f">>> crawl urls count: {len(page_attr.urls)}")
             self.detail_url_list.extend(page_attr.urls)
             self.cur_page += 1
@@ -246,7 +253,11 @@ class AnnouncementSpider(scrapy.Spider):
                 if len(self.detail_url_list) > 0:
                     result['last_crawl_url'] = self.detail_url_list.pop()
                 if self.last_crawl_time is not None:
+                    # if str(self.spider_id in ['1001', '1002', '1003', '1004']):
+                    #     self.last_crawl_time = self.last_crawl_time - datetime.timedelta(days=1)
                     result['last_crawl_time'] = self.last_crawl_time.timestamp()
+
+
             self.logger.info(f'>>> update task status: {json.dumps(result)}')
             update_task_status(result)
         except Exception as e:
