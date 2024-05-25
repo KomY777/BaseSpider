@@ -164,7 +164,8 @@ class BasespiderDownloaderMiddleware(object):
             time.sleep(5)
             if self.errorcount > 5:
                 logging.error('error status'+str(response.status), exc_info=True)
-                spider.crawler.engine.close_spider(spider, {'istrue_end': 'false', 'status': 0, 'result': '异常状态码'+str(response.status)})
+                return response
+                # spider.crawler.engine.close_spider(spider, {'istrue_end': 'false', 'status': 0, 'result': '异常状态码'+str(response.status)})
             return request
         else:
             return response
