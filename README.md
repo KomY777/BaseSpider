@@ -52,6 +52,6 @@ cd scrapyd
 
 scrapyd
 
-scrapyd-deploy -F egg=output.egg  
+scrapyd-deploy --build-egg=output.egg 
 ```
 将打包后的egg文件通过web部署到scrapyd服务
