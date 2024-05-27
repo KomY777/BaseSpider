@@ -5,3 +5,5 @@ Requests==2.32.2
 Scrapy==2.5.1
 setuptools==65.5.1
 six==1.16.0
+scrapyd==1.4.3
+psutil==5.9.8
