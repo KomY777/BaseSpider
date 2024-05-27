@@ -38,6 +38,14 @@ class DaemonStatus(WsResource):
         }
 ```
 
+# 添加爬虫
+在base_component 目录下放置解析器文件，注意文件名与类名格式
+
+web端先添加解析器，再添加爬虫
+
+添加完后打包项目并部署
+
+
 # 打包
 ```shell
 cd scrapyd
