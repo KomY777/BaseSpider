@@ -158,6 +158,8 @@ class MultithreadingAnalysis:
                       'DL': dishonest_list_judge(),
                       'I_G': intention_judge(),
                       'MED_AN': med_an_judge()}
+        if type not in judge_dict:
+            return True
         judge_method = judge_dict[type]
         if content == {}:
             return False
