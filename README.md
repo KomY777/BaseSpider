@@ -2,8 +2,31 @@
 ```shell
 pip install -r requirements.txt
 ```
-# 部署前配置
-将以下代码替换 scrapyd第三方库文件里的webservice.py文件中的DaemonStatus类
+
+# 添加爬虫
+在base_component 目录下放置解析器文件，注意文件名与类名格式
+
+web端先添加解析器，再添加爬虫
+
+添加完后打包项目并部署
+
+
+# 打包
+```shell
+scrapyd-deploy --build-egg=output.egg 
+```
+将打包后的egg文件通过web部署到scrapyd服务
+
+
+# 多节点部署
+1. 在目标服务器上安装python3.9，并安装scrapyd
+```shell
+pip install scrapyd
+```
+
+2. 进入python第三方库site-packages<br/>
+使用以下代码替换 scrapyd第三方库文件里的webservice.py文件中的DaemonStatus类 
+>> scrapyd没有实现获取服务器状态的接口，需要自己实现。后续可以把scrapyd的代码fork下来再封装
 ```python
 
 import psutil
@@ -38,20 +61,7 @@ class DaemonStatus(WsResource):
         }
 ```
 
-# 添加爬虫
-在base_component 目录下放置解析器文件，注意文件名与类名格式
-
-web端先添加解析器，再添加爬虫
-
-添加完后打包项目并部署
-
-
-# 打包
+3. 将scrapyd文件夹拷贝到目标服务器,进入scrapyd文件夹，使用scrapyd.conf启动scrapyd
 ```shell
-cd scrapyd
-
 scrapyd
-
-scrapyd-deploy --build-egg=output.egg 
 ```
-将打包后的egg文件通过web部署到scrapyd服务
