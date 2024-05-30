@@ -82,6 +82,7 @@ class AnnouncementSpider(scrapy.Spider):
 
             self.crawl_num = 0
             self.resolve_num = 0
+            self.error_num = 0
 
             self.detail_url_list = []
             self.response_list = []
@@ -175,8 +176,8 @@ class AnnouncementSpider(scrapy.Spider):
     def crawl_page(self, response: Response):
         try:
             self.logger.info(f">>> crawl_page: {self.cur_page}")
-            # 中国政府采购网半小时内最多抓5次
-            if str(self.spider_id) in ['47', '44'] and self.cur_page > 4:
+            # 中国政府采购网半小时内最多抓4次
+            if str(self.spider_id) in ['47', '44'] and self.cur_page >= 4:
                 self.logger.info(f">>> 超过限制页数，停止爬取")
                 yield from self.crawl_detail()
                 return
@@ -200,6 +201,7 @@ class AnnouncementSpider(scrapy.Spider):
             self.logger.info(f">>> crawl urls count: {len(page_attr.urls)}")
             self.detail_url_list.extend(page_attr.urls)
             self.cur_page += 1
+
             yield self.generate_page_request(self.cur_page, self.crawl_page)
         except Exception as e:
             self.logger.error(f">>> crawl_page error: {e}")
@@ -213,7 +215,7 @@ class AnnouncementSpider(scrapy.Spider):
         except Exception as e:
             self.logger.error(f">>> crawl_detail error: {e}")
             self.logger.exception(e)
-            self.crawler.engine.close_spider(self, str(e))
+            self.error_num += 1
 
     def after_crawl_detail(self, response: Response):
         self.logger.info(response.url)
@@ -221,10 +223,20 @@ class AnnouncementSpider(scrapy.Spider):
                       'content': response.text, 'type': self.spider_info.an_type,
                       'section': 0}
         message = write_response_to_db(crawl_html)
+        self.logger.info(json.dumps(message))# 调用方法使response数据入库
         if message['code'] == '200':
             self.crawl_num += 1
             self.response_list.append(crawl_html)
-        self.logger.info(json.dumps(message))# 调用方法使response数据入库
+
+        if message['code'] not in ['200', '201']:
+            self.error_num += 1
+
+        if self.crawl_num % 4 == 0:
+            update_task_status({
+                'task_id': self.task_id,
+                'status': TaskStatus.RUNNING,
+                'total_crawl': self.crawl_num,
+            })
 
     def start_resolve(self):
         self.logger.info('>>> start resolve')
@@ -253,8 +265,6 @@ class AnnouncementSpider(scrapy.Spider):
                 if len(self.detail_url_list) > 0:
                     result['last_crawl_url'] = self.detail_url_list.pop()
                 if self.last_crawl_time is not None:
-                    # if str(self.spider_id in ['1001', '1002', '1003', '1004']):
-                    #     self.last_crawl_time = self.last_crawl_time - datetime.timedelta(days=1)
                     result['last_crawl_time'] = self.last_crawl_time.timestamp()
 
 
