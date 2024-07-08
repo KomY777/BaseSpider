@@ -52,8 +52,8 @@ class AnnouncementSpider(scrapy.Spider):
                 self.crawl_start_time = datetime.datetime.fromtimestamp(int(kwargs.get('range_end_time')))
             # 日期字符串格式
             else:
-                self.crawl_end_time = datetime.datetime.strptime(kwargs.get('range_start_time'), DATE_TIME_FORMAT)
-                self.crawl_start_time = datetime.datetime.strptime(kwargs.get('range_end_time'), DATE_TIME_FORMAT)
+                self.crawl_end_time = datetime.datetime.strptime(kwargs.get('range_start_time')+" 00:00:00", DATE_TIME_FORMAT)
+                self.crawl_start_time = datetime.datetime.strptime(kwargs.get('range_end_time')+" 00:00:00", DATE_TIME_FORMAT)
 
             self.logger.info(f'>>> crawl_start_time: {self.crawl_start_time}, crawl_end_time: {self.crawl_end_time}')
 

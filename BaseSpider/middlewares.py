@@ -16,9 +16,11 @@ import copy
 import requests
 import scrapy
 from scrapy import signals
+from scrapy.exceptions import IgnoreRequest
 from scrapy.http import HtmlResponse, Response
 
 from BaseSpider import settings
+from BaseSpider.settings import USER_AGENT, USER_AGENTS
 
 
 class BasespiderSpiderMiddleware(object):
@@ -74,15 +76,12 @@ class BasespiderDownloaderMiddleware(object):
     # scrapy acts as if the downloader middleware does not modify the
     # passed objects.
 
-
     def __init__(self):
         self.errorcount = 0
         self.retry_http_codes = [302, 403, 400, 405, 404, 504, 503]
         # 预先保留在settings中的代理IP列表
         self.proxies = settings.PROXIES
         self.proxy = None
-
-
 
     @classmethod
     def from_crawler(cls, crawler):
@@ -93,7 +92,7 @@ class BasespiderDownloaderMiddleware(object):
 
     def process_request(self, request, spider):
         if "website" in request.meta:
-            if request.meta["website"] =='cqggzy':
+            if request.meta["website"] == 'cqggzy':
                 request.headers = {
                     'Accept': 'application/json, text/javascript, */*; q=0.01',
                     'Accept-Encoding': 'gzip, deflate, br',
@@ -119,45 +118,46 @@ class BasespiderDownloaderMiddleware(object):
                 }
                 if len(request.body) == 0:
                     now_time = datetime.datetime.now() - datetime.timedelta(days=90)
-                    start_time = now_time.strftime("%Y-%m-%d "+"23:59:59")
-                    end_time = datetime.datetime.now().strftime("%Y-%m-%d "+"23:59:59")
+                    start_time = now_time.strftime("%Y-%m-%d " + "23:59:59")
+                    end_time = datetime.datetime.now().strftime("%Y-%m-%d " + "23:59:59")
                     body = '{"token":"","pn":0,"rn":20,"sdt":"","edt":"","wd":"","inc_wd":"",' \
-                                                                            '"exc_wd":"","fields":"","cnum":"001",' \
-                                                                            '"sort":"{\\"istop\\":\\"0\\",\\"ordernum\\":\\"0\\",' \
-                                                                            '\\"webdate\\":\\"0\\",\\"rowid\\":\\"0\\"}",' \
-                                                                            '"ssort":"","cl":10000,"terminal":"","condition":[{' \
-                                                                            '"fieldName":"categorynum","equal":"014001004",' \
-                                                                            '"notEqual":null,"equalList":null,"notEqualList":[' \
-                                                                            '"014001018","004002005","014001015","014005014",' \
-                                                                            '"014008011"],"isLike":true,"likeType":2}],' \
-                                                                            '"time":[{"fieldName":"webdate",' \
-                                                                            '"startTime":"'+start_time+'",' \
-                                                                            '"endTime":"'+end_time+'"}],"highlights":"",' \
-                                                                            '"statistics":null,"unionCondition":[],"accuracy":"",' \
-                                                                            '"noParticiple":"1","searchRange":null,"noWd":true} '
-                    response = requests.post(url=request.url, headers=request.headers,json=json.loads(body), timeout=120)
+                           '"exc_wd":"","fields":"","cnum":"001",' \
+                           '"sort":"{\\"istop\\":\\"0\\",\\"ordernum\\":\\"0\\",' \
+                           '\\"webdate\\":\\"0\\",\\"rowid\\":\\"0\\"}",' \
+                           '"ssort":"","cl":10000,"terminal":"","condition":[{' \
+                           '"fieldName":"categorynum","equal":"014001004",' \
+                           '"notEqual":null,"equalList":null,"notEqualList":[' \
+                           '"014001018","004002005","014001015","014005014",' \
+                           '"014008011"],"isLike":true,"likeType":2}],' \
+                           '"time":[{"fieldName":"webdate",' \
+                           '"startTime":"' + start_time + '",' \
+                                                          '"endTime":"' + end_time + '"}],"highlights":"",' \
+                                                                                     '"statistics":null,"unionCondition":[],"accuracy":"",' \
+                                                                                     '"noParticiple":"1","searchRange":null,"noWd":true} '
+                    response = requests.post(url=request.url, headers=request.headers, json=json.loads(body),
+                                             timeout=120)
                     resp = Response(url=request.url, body=response.content, request=request)
                     return resp
 
-                response = requests.post(url=request.url, headers=request.headers,json=json.loads(request.body), timeout=120)
+                response = requests.post(url=request.url, headers=request.headers, json=json.loads(request.body),
+                                         timeout=120)
                 resp = Response(url=request.url, body=response.content, request=request)
                 return resp
         if self.proxy:
             request.meta['proxy'] = self.proxy
-
-
 
     def process_response(self, request, response, spider):
         """当下载器完成http请求，返回响应给引擎的时候调用process_response"""
 
         if response.status in self.retry_http_codes:
             self.errorcount += 1
-            time.sleep(5)
-            if self.errorcount > 5:
-                logging.error('error status'+str(response.status), exc_info=True)
-                return response
+            if request.meta.get('middleware') == "requests":
+                requests.get(url="http://www.ccgp.gov.cn/", headers={'User-Agent': random.choice(USER_AGENTS)})
+            time.sleep(random.random() * 10)
+            if self.errorcount > 3:
+                logging.error('error status' + str(response.status), exc_info=True)
+                raise IgnoreRequest("Ignoring this request")
             return request
-
         if re.search("频繁访问", response.text):
             self.errorcount += 1
             print("频繁访问, 等待20s")
@@ -168,7 +168,6 @@ class BasespiderDownloaderMiddleware(object):
             return request
 
         return response
-
 
     def process_exception(self, request, exception, spider):
         if self.errorcount < 5:
@@ -197,10 +196,12 @@ class BasespiderDownloaderMiddleware(object):
                     self.proxy = get_proxy().get("proxy")
                 print(self.proxy)
                 if body is not None:
-                    html = requests.post(url=request.url, headers=request.headers, proxies={"https": "http://{}".format(self.proxy)},json=json.loads(body), timeout=120)
+                    html = requests.post(url=request.url, headers=request.headers,
+                                         proxies={"https": "http://{}".format(self.proxy)}, json=json.loads(body),
+                                         timeout=120)
                 else:
-                    html = requests.get(url=request.url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36'}
-, proxies={"https": "http://{}".format(self.proxy)}, timeout=30)
+                    html = requests.get(url=request.url, headers={'User-Agent': random.choice(USER_AGENTS)},
+                                        proxies={"https": "http://{}".format(self.proxy)}, timeout=30)
                 if html.status_code != 200:
                     raise Exception
                 return html
@@ -216,7 +217,58 @@ class BasespiderDownloaderMiddleware(object):
 def get_proxy():
     return requests.get("http://127.0.0.1:5010/get/").json()
 
+
 def delete_proxy(proxy):
     requests.get("http://127.0.0.1:5010/delete/?proxy={}".format(proxy))
 
-# your spider code
+
+class requestsMiddleware(object):
+    # Not all methods need to be defined. If a method is not defined,
+    # scrapy acts as if the downloader middleware does not modify the
+    # passed objects.
+
+    def __init__(self):
+        self.errorcount = 0
+        self.retry_http_codes = [302, 403, 400, 405, 404, 504, 503]
+        # 预先保留在settings中的代理IP列表
+        self.proxies = settings.PROXIES
+        self.proxy = None
+
+    @classmethod
+    def from_crawler(cls, crawler):
+        # This method is used by Scrapy to create your spiders.
+        s = cls()
+        crawler.signals.connect(s.spider_opened, signal=signals.spider_opened)
+        return s
+
+    def process_request(self, request, spider):
+        if request.meta.get('middleware') == "requests":
+            time.sleep(random.random() * 5)
+            if request.method == 'GET':
+                response = requests.get(request.url, headers={'User-Agent': random.choice(USER_AGENTS)}, timeout=120)
+                resp = HtmlResponse(url=request.url, body=response.content, request=request,
+                                    status=response.status_code, encoding='utf-8')
+            else:
+                response = requests.post(request.url, headers={'User-Agent': USER_AGENT}, data=json.loads(request.body),
+                                         timeout=120)
+                resp = Response(url=request.url, body=response.content, status=response.status_code, request=request)
+
+            return resp
+
+    def process_exception(self, request, exception, spider):
+        if self.errorcount < 5:
+            self.errorcount += 1
+            return request
+        if isinstance(exception, TimeoutError):
+            return request
+        # Called when a download handler or a process_request()+
+        # (from other downloader middleware) raises an exception.
+
+        # Must either:
+        # - return None: continue processing this exception
+        # - return a Response object: stops process_exception() chain
+        # - return a Request object: stops process_exception() chain
+        # pass
+
+    def spider_opened(self, spider):
+        spider.logger.info('Spider opened: %s' % spider.name)
