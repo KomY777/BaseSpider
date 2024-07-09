@@ -5,7 +5,7 @@ from BaseSpider.base_component.entity.PageAttribute import PageAttribute
 
 import json
 
-class ZGZF_I_G_ReqPageResolver(PageResolver):
+class ZGZF_I_G_ReadPageResolver(PageResolver):
 
     def __init__(self):
         self.url_prefix = 'http://cgyx.ccgp.gov.cn/cgyx/pub/pubSearch'

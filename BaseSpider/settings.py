@@ -62,6 +62,7 @@ PROXIES = ["http://127.0.0.1:5010", None]
 
 RETRY_ENABLED = False
 
-SCHEDULE_ADMIN_SERVER_URL = 'http://localhost:2024/api'
-ANNOUNCEMENT_DB_SERVER_URL = 'http://localhost:8000/databaseOperate'
-# ANNOUNCEMENT_DB_SERVER_URL = 'http://39.100.86.12:8899/databaseOperate'
+# SCHEDULE_ADMIN_SERVER_URL = 'http://localhost:2024/api'
+# ANNOUNCEMENT_DB_SERVER_URL = 'http://localhost:8000/databaseOperate'
+SCHEDULE_ADMIN_SERVER_URL = 'http://39.100.86.12:2024/api'
+ANNOUNCEMENT_DB_SERVER_URL = 'http://39.100.86.12:8899/databaseOperate'
